@@ -1,8 +1,8 @@
 ######## Webcam Object Detection Using Tensorflow-trained Classifier #########
 #
-# Author: Evan Juras
-# Date: 10/27/19
-# Description: 
+# Author: Tobie Abel
+# Date: 19/8/2020
+# Description:
 # This program uses a TensorFlow Lite model to perform object detection on a live webcam
 # feed. It draws boxes and scores around the objects of interest in each frame from the
 # webcam. To improve FPS, the webcam object runs in a separate thread from the main program.
@@ -11,7 +11,11 @@
 # This code is based off the TensorFlow Lite image classification example at:
 # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/examples/python/label_image.py
 #
-# I added my own method of drawing boxes and labels using OpenCV.
+# it was further added to by edje electronics https://www.youtube.com/watch?v=aimSGOAUI8Y&t=2s adding
+# methods of drawing boxes and labels using OpenCV.
+#
+# I have added all the code for moving the servo's of the goal keeper, predicting positions when the ball is lost
+# and sending emails with attached photos when a goal is scored
 
 # Import packages
 import os
@@ -24,22 +28,78 @@ import time
 from threading import Thread
 import importlib.util
 import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+from email.mime.base import MIMEBase
+from email import encoders
 
-server=smtplib.SMTP('smtp.gmail.com',587)
-server.starttls()
-server.login("tobieabel@gmail.com","heather301")
-msg="You Scored past Robokeeper"
-server.sendmail("tobieabel@gmail.com","tobie.abel@vrpconsulting.com",msg)
-server.quit()
-#set GPIO numbering mode
+# Email variables
+SMTP_SERVER = 'smtp.gmail.com'  # Email Server
+SMTP_PORT = 587  # server port got gmail when using TLS security
+GMAIL_USERNAME = "tobie.abel@gmail.com"
+GMAIL_PASSWORD = "heather301"
+sendTo = "tobie.abel@vrpconsulting.com"
+emailSubject = "VAR"
+emailContent = "Decision is...Goal Allowed!"
+lastTime = 0
+
+
+class Emailer:
+    def sendmail(self, recipient, subject, content):
+        global lastTime
+        # check if email has been sent in last min
+        thisTime = time.time()
+        if thisTime - lastTime > 60:
+            print("goal!")
+
+            # create headers
+            emailData = MIMEMultipart()
+            emailData['subject'] = subject
+            emailData['To'] = recipient
+            emailData['From'] = GMAIL_USERNAME
+
+            # store latest frame as jpg
+            cv2.imwrite("/home/pi/tflite1/Goal/frame1.jpg", frame1)
+
+            # Attach text
+            emailData.attach(MIMEText(content))
+
+            # Attach image
+            with open("/home/pi/tflite1/Goal/frame1.jpg",
+                      "rb") as attachment:  # this is file location where frame was saved
+                part = MIMEBase("application", "octet-stream")
+                part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f'attachment; filename="frame1.jpg"')
+            emailData.attach(part)
+
+            # connect to gmail server
+            session = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            session.ehlo()
+            session.starttls()
+            session.ehlo()
+
+            # login to gmail
+            session.login(GMAIL_USERNAME, GMAIL_PASSWORD)
+
+            # send email & exit
+            session.sendmail(GMAIL_USERNAME, recipient, emailData.as_string())
+            session.quit
+            lastTime = thisTime
+
+
+sender = Emailer()
+
+# set GPIO numbering mode
 GPIO.setmode(GPIO.BOARD)
 
-#set pin 11 and 15 as an output, and set servo1 on pin 11 and servo2 von pin 12 as PWM
-GPIO.setup(11,GPIO.OUT)
-servo1 = GPIO.PWM(11,50) #note 11 is pin, 50 = 50Hz pulse
-GPIO.setup(15,GPIO.OUT)
-servo2 = GPIO.PWM(15,50) #note 15 is pin, 5 = 50Hz pulse
-GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_UP) #pin connected to reset button
+# set pin 11 and 15 as an output, and set servo1 on pin 11 and servo2 von pin 12 as PWM
+GPIO.setup(11, GPIO.OUT)
+servo1 = GPIO.PWM(11, 50)  # note 11 is pin, 50 = 50Hz pulse
+GPIO.setup(15, GPIO.OUT)
+servo2 = GPIO.PWM(15, 50)  # note 15 is pin, 5 = 50Hz pulse
+GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # pin connected to reset button
 
 #Start PWM running, but with a value of 5 (90 degree)
 servo1.start(5)
@@ -294,158 +354,65 @@ while True:
     # Loop over all detections and draw detection box if confidence is above minimum threshold i.e found the ball
     #for i in range(len(scores)):
     if ((scores[maxscore] > min_conf_threshold) and (scores[maxscore] <= 1.0)):
-            
-            # Get bounding box coordinates and draw box
-            # Interpreter can return coordinates that are outside of image dimensions, need to force them to be within image using max() and min()
-            ymin = int(max(1,(boxes[maxscore][0] * imH)))
-            xmin = int(max(1,(boxes[maxscore][1] * imW)))
-            ymax = int(min(imH,(boxes[maxscore][2] * imH)))
-            xmax = int(min(imW,(boxes[maxscore][3] * imW)))
-            ycentre = int((ymin + ymax)*0.5)#calculate centre of bounding box
-            xcentre = int((xmin + xmax)*0.5)#calculate centre of bounding box
-            print("The ball is at position", xcentre, ycentre)
-            #save the last x and y to prev x and y
-            prevx = lastx
-            prevy = lasty
-            #save current x and y to last x and y
-            lastx = xcentre
-            lasty = ycentre
-            print("the last position of X and Y has been saved as ", lastx, lasty)
-            print("the previous position of X and Y has been saved as ", prevx, prevy)
-            ticker = 0
-            print("ticker set back to ", ticker)
-            #draw bounding box with circle in centre
-            #cv2.circle(frame, (xcentre, ycentre), 50, (10,255,0), thickness=2,lineType=8, shift=0)
-            cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
-            # Calculate error
-            #x_error = int (640 - xcentre) #640 is half the 1280 camera horizontal pixel resolution
-            #print (" X Error = ", x_error)
-            # Translate X into duty cycle
-            #assign x to a category and only change servos if the category has changed since last frame
-            moveball(xcentre, ycentre)
-            #Loop through the positions dictionary. and find the category which the ball position is in
-            #if ycentre > 270: #if the ball is close to the bottom of the screen, its near the goal so jitter around
-                #servo2.ChangeDutyCycle(3)
-                #time.sleep(0.075)
-                #servo2.ChangeDutyCycle(7)
-                #time.sleep(0.075)
-                #servo2.ChangeDutyCycle(3)
-                #time.sleep(0.075)
-                #servo2.ChangeDutyCycle(7)
-                #time.sleep(0.075)
-                #servo2.ChangeDutyCycle(3)
-                #time.sleep(0.075)
-                #servo2.ChangeDutyCycle(7)
-                #time.sleep(0.075)
-                #servo2.ChangeDutyCycle(dutys[newPosition][1])
-                #time.sleep(0.1)
-                
-            #else:
-                #for x in positions.items():
-                    #if not xcentre > x[1]: #if x is not greater than the upper limit of a category
-                           #newPosition = x[0] #assign newValue to that category
-                          # print("the new position = ", newPosition)
-                           #print("the current position = ", currentPosition)
-                           #if not newPosition == currentPosition:
-                                #write some code to retrieve values from duty dictionary and move servos' assign new value to current position
-                                #duty1 = dutys[newPosition][0]
-                                #duty2 = dutys[newPosition][1]
-                                #print("The new duty 2 = ", duty2)
-                                #servo1.ChangeDutyCycle(duty1)
-                                #servo2.ChangeDutyCycle(duty2)
-                                #time.sleep(0.1)
-                                #duty1 = 0
-                                #duty2 = 0
-                                #servo1.ChangeDutyCycle(duty1)
-                                #servo2.ChangeDutyCycle(duty2)
-                                #currentPosition = newPosition
-                                #print("current position has been changed to ",currentPosition)
-                           #break
-            
-               
-           # if (0 < xcentre < 128):#if X is between 0 and 127
-           #     duty1 = 2
-           #     duty2 = 4
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-           #     print("duty 2 = ", duty2)
-           #     time.sleep(0.1)
-           #     duty1 = 0
-           #     duty2 = 0
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-           # elif (128 <= xcentre < 256):#if X is between 128 and 255
-           #     duty1 = 3
-           #     duty2 = 4.5
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-           #     print("duty 2 = ", duty2)
-           #     time.sleep(0.1)
-           #     duty1 = 0
-           #     duty2 = 0
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-           # elif (256 <= xcentre < 384):#if X is between 128 and 255
-           #     duty1 = 5
-           #     duty2 = 5
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-           #     print("duty 2 = ", duty2)
-           #     time.sleep(0.1)
-           #     duty1 = 0
-           #     duty2 = 0
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-           # elif (384 <= xcentre < 512):#if X is between 128 and 255
-           #     duty1 = 7
-           #     duty2 = 5.5
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-           #     print("duty 2 = ", duty2)
-           #     time.sleep(0.1)
-           #     duty1 = 0
-           #     duty2 = 0
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-           # elif (512<= xcentre <640):
-           #     duty1 = 8
-           #     duty2 = 6
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-           #     print("duty 2 = ", duty2)
-           #     time.sleep(0.1)
-           #     duty1 = 0
-           #     duty2 = 0
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-           # else:
-           #     duty1 = 0
-           #     duty2 = 0
-           #     servo1.ChangeDutyCycle(duty1)
-           #     servo2.ChangeDutyCycle(duty2)
-            # Draw label
-            object_name = labels[int(classes[maxscore])] # Look up object name from "labels" array using class index
-            label = '%s: %d%%' % (object_name, int(scores[maxscore]*100)) # Example: 'person: 72%'
-            labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2) # Get font size
-            label_ymin = max(ymin, labelSize[1] + 10) # Make sure not to draw label too close to top of window
-            cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
-            cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
-    
-    #if no ball is found
+
+        # Get bounding box coordinates and draw box
+        # Interpreter can return coordinates that are outside of image dimensions, need to force them to be within image using max() and min()
+        ymin = int(max(1, (boxes[maxscore][0] * imH)))
+        xmin = int(max(1, (boxes[maxscore][1] * imW)))
+        ymax = int(min(imH, (boxes[maxscore][2] * imH)))
+        xmax = int(min(imW, (boxes[maxscore][3] * imW)))
+        ycentre = int((ymin + ymax) * 0.5)  # calculate centre of bounding box
+        xcentre = int((xmin + xmax) * 0.5)  # calculate centre of bounding box
+        print("The ball is at position", xcentre, ycentre)
+        # save the last x and y to prev x and y
+        prevx = lastx
+        prevy = lasty
+        # save current x and y to last x and y
+        lastx = xcentre
+        lasty = ycentre
+        print("the last position of X and Y has been saved as ", lastx, lasty)
+        print("the previous position of X and Y has been saved as ", prevx, prevy)
+        ticker = 0
+        print("ticker set back to ", ticker)
+        # draw bounding box with circle in centre
+        # cv2.circle(frame, (xcentre, ycentre), 50, (10,255,0), thickness=2,lineType=8, shift=0)
+        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (10, 255, 0), 2)
+        # Calculate error
+        # x_error = int (640 - xcentre) #640 is half the 1280 camera horizontal pixel resolution
+        # print (" X Error = ", x_error)
+        # Translate X into duty cycle
+        # assign x to a category and only change servos if the category has changed since last frame
+        moveball(xcentre, ycentre)
+
+        # Draw label
+        object_name = labels[int(classes[maxscore])]  # Look up object name from "labels" array using class index
+        label = '%s: %d%%' % (object_name, int(scores[maxscore] * 100))  # Example: 'person: 72%'
+        labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)  # Get font size
+        label_ymin = max(ymin, labelSize[1] + 10)  # Make sure not to draw label too close to top of window
+        cv2.rectangle(frame, (xmin, label_ymin - labelSize[1] - 10), (xmin + labelSize[0], label_ymin + baseLine - 10),
+                      (255, 255, 255), cv2.FILLED)  # Draw white box to put label text in
+        cv2.putText(frame, label, (xmin, label_ymin - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0),
+                    2)  # Draw label text
+
+    # if no ball is found
     else:
-        if prevx is not None and ticker < 3: #if we've got at least 2 previous frames with the ball
+        if prevx is not None and ticker < 3:  # if we've got at least 2 previous frames with the ball
             print("ticker = ", ticker)
             changeInx = prevx - lastx
             changeIny = prevy - lasty
-            predx = lastx - changeInx 
+            predx = lastx - changeInx
             predy = lasty - changeIny
             if changeIny < 0:
                 predy = lasty - (changeIny *1.15) #add proprtionate gain if ball is moving towards camera as it will naturally cover more pixels 
             print("ball canot be found.  We predict it would be in position ", predx, predy)
-            moveball (predx, predy)
+            moveball(predx, predy)
             ticker = ticker + 1
             prevy = lasty
             lasty = predy
+            # if this is the third time ticker and x/y coordinates mean ball should be in the goal, send email with attached photo
+            if ticker == 3 and lasty > 460:
+                sender.sendmail(sendTo, emailSubject, emailContent)
+
     # Draw framerate in corner of frame
     cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
 
