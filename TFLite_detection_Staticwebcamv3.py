@@ -1,6 +1,6 @@
 ######## Webcam Object Detection Using Tensorflow-trained Classifier #########
 #
-# Author: Tobie
+# Author: Tobie Abels
 # Date: 19/8/2020
 # Description:
 # This program uses a TensorFlow Lite model to perform object detection on a live webcam
