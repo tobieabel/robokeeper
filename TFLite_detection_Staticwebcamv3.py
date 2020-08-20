@@ -22,7 +22,6 @@ import os
 import argparse
 import cv2
 import numpy as np
-import sys
 import RPi.GPIO as GPIO
 import time
 from threading import Thread
@@ -30,7 +29,6 @@ import importlib.util
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
 from email.mime.base import MIMEBase
 from email import encoders
 
