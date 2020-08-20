@@ -59,7 +59,7 @@ class Emailer:
             emailData['To'] = recipient
             emailData['From'] = GMAIL_USERNAME
 
-            # store latest frame as jpg
+            # store latest frame as jpg.  frame 1 is the name of the variable used for videostream.read()
             cv2.imwrite("/home/pi/tflite1/Goal/frame1.jpg", frame1)
 
             # Attach text
