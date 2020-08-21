@@ -2,6 +2,7 @@
 #
 # Author: Tobie Abels
 # Date: 33/8/2020
+
 # Description:
 # This program uses a TensorFlow Lite model to perform object detection on a live webcam
 # feed. It draws boxes and scores around the objects of interest in each frame from the
@@ -34,7 +35,7 @@ from email import encoders
 
 # Email variables
 SMTP_SERVER = 'smtp.gmail.com'  # Email Server
-SMTP_PORT = 587  # server port got gmail when using TLS security
+SMTP_PORT = 587  # server port for gmail when using TLS security
 GMAIL_USERNAME = "emailaddress"
 GMAIL_PASSWORD = "password"
 sendTo = "tobie.abel@vrpconsulting.com"
