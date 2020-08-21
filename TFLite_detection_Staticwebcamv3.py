@@ -1,6 +1,7 @@
 ######## Webcam Object Detection Using Tensorflow-trained Classifier #########
 #
-# Author: Tobie Abels
+=======
+# Author: Tobie Abel
 # Date: 33/8/2020
 
 # Description:
