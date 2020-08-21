@@ -31,13 +31,12 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-import OS
 
 # Email variables
 SMTP_SERVER = 'smtp.gmail.com'  # Email Server
 SMTP_PORT = 587  # server port got gmail when using TLS security
-GMAIL_USERNAME = "tobie.abel@gmail.com"
-GMAIL_PASSWORD = "heather301"
+GMAIL_USERNAME = "emailaddress"
+GMAIL_PASSWORD = "password"
 sendTo = "tobie.abel@vrpconsulting.com"
 emailSubject = "VAR"
 emailContent = "Decision is...Goal Allowed!"
